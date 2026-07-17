@@ -1,0 +1,6 @@
+# dev / 探查产物（不进仓库）
+_archive/
+
+# 运行时生成产物（每次执行产生，非核心）
+*.json
+!companies.txt
