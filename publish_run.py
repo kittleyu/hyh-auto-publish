@@ -163,8 +163,7 @@ def main():
         return
 
     if not USER or not PWD:
-        print("❌ 请设置环境变量 HYH_USER 和 HYH_PWD")
-        sys.exit(1)
+        print("⚠️ 未设置 HYH_USER/HYH_PWD；若调试 Chrome 已登录 360 智见后台则可跳过登录直接发布")
 
     ensure_chrome()
     from playwright.sync_api import sync_playwright

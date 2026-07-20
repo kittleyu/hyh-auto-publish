@@ -109,8 +109,9 @@ description: |
 |------|------|
 | `build_map.py` | 登录 → 拉文章/词包/媒体 → 归一化 → 生成映射表。参数：`--ids "id1,id2"`（只对指定文章）、`--media-ids "id1,id2"`（媒体白名单，指定历史媒体并保序）、`--sort price\|quote_cnt\|score`、`--candidate-source all\|history\|whitelist\|curated`、`--curated curated_sources.json`、`--boost-whitelist`、`--top-k N`、`--media-type 1\|2`、`--out`、`CORP_ID` 环境变量 |
 | `audit_run.py` | 批量审核：拉 `audit_status=-1` 待审核文章，逐篇 POST `/article/{id}/update` 置为审核完成。参数：`--limit N --status 1 --dry-run --out` |
-| `publish_run.py` | 读取映射表 → 按 media 分组 → 调用 dispatch 发布。参数：`--map --out --dry-run`（**无 --dry-run 才真实扣豆**） |
+| `publish_run.py` | 读取映射表 → 按 media 分组 → 调用 dispatch 发布。参数：`--map --out --dry-run`（**无 --dry-run 才真实扣豆**）。凭据检查已放宽：调试 Chrome 已登录 360 后台时无需设置 HYH_USER/HYH_PWD |
 | `verify_publish.py` | 核对指定文章真实 `publish_status`（不靠被忽略的过滤参数，逐页匹配读字段）。环境变量 `CORP_ID` / `IDS` |
+| `publish_failed.py` | **重发「发布失败(publish_status=4)」文章**：切到指定 corp → 遍历文章页收集 `pub=4` 的前 N 篇 → 用 curated 信源（可叠加 `--topic`/`--exclude`）生成映射表。参数：`--limit N --top-k K --topic --exclude --curated --out`、`CORP_ID` 环境变量。**只生成映射表，不发布**，预览后交给用户确认，再用 publish_run.py 发布 |
 | `media_probe.py` | 探查候选媒体池的 quote_cnt / price 分布（判断热度数据可用性、找便宜/相关媒体） |
 | `build_whitelist.py` | 拉取 `/media` 全量按 `score` 降序，生成 `media_whitelist.json`（AI 收录优选白名单，Top 300）与 `media_whitelist_full.json`（全量排序）；打印平台分布供审阅 |
 | `resolve_curated.py` | 读取 `curated_sources.json`，对每项 `name` 调 `/media?keyword=` 反查 `media_id/platform_name/score/price` 并**写回**原文件（跨 media_type=1/2 搜索，平台名匹配优先）。**新增信源流程**：直接在 `curated_sources.json` 的 `sources` 数组追加 `{name, category, note}`（media_id 留空），重跑本脚本即全量反查（已填的会被刷新为最新，幂等）；重复/同名会自动去重 |
@@ -168,6 +169,16 @@ CORP_ID=<ID> $PY build_map.py --candidate-source curated --top-k 5 \
 #   可叠加主题过滤（如只发金融相关信源）：
 CORP_ID=<ID> $PY build_map.py --candidate-source curated --top-k 3 \
     --topic "金融,财经,投资" --ids "247059,..." --out map.json
+
+# 9. 重发「发布失败(pub=4)」文章（build_map 只抓 pub=0，抓不到失败文章，用专用脚本）：
+#    先生成失败文章重发映射表（仅生成，不发布）：
+CORP_ID=<客户corp> $PY publish_failed.py --limit 5 --top-k 5 \
+    --topic "期货,金融,财经,证券,股票,投资,雪球,搜狐,网易,新浪,百家号" \
+    --exclude "华律,庭立方,法律,律师,法制" --out map_failed.json
+#    预览确认后，再用 publish_run.py 真实发布：
+CORP_ID=<客户corp> $PY publish_run.py --map map_failed.json
+#    复核真实状态（应为 2=发布中 或 3=已发布，不再是 4=失败）：
+CORP_ID=<客户corp> IDS="245586,245584,..." $PY verify_publish.py
 ```
 
 ## 典型实战记录（可作为模板参考）
