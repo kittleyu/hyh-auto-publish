@@ -220,13 +220,14 @@ def main():
     page = ctx.pages[0] if ctx.pages else ctx.new_page()
 
     try:
+        if not check_logged_in(page):
+            do_login(page)
+
+        # 必须先登录再切公司：否则 changecorp 会被随后的登录重置（新会话会回到默认 corp）
         if CORP_ID:
             api_get(page, f"/yunying/v1/auth/changecorp?corp_id={CORP_ID}")
             print(f">>> 切换公司 corp_id={CORP_ID}")
             page.wait_for_timeout(1500)
-
-        if not check_logged_in(page):
-            do_login(page)
 
         user = api_get(page, "/yunying/v1/user/current?platform=win")
         corp_id = user.get("data", {}).get("corp_id")
