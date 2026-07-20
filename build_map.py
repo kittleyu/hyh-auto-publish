@@ -198,7 +198,7 @@ def main():
     parser.add_argument("--media-type", type=int, default=2, help="媒体类型：1 新闻，2 自媒体")
     parser.add_argument("--sort", default="quote_cnt", choices=["quote_cnt", "price"], help="媒体排序依据")
     parser.add_argument("--out", default="publish_map.json", help="输出映射表路径")
-    parser.add_argument("--candidate-source", default="all", choices=["history", "all"], help="候选池来源：all 全部媒体(按 quote_cnt 热度排序，推荐)，history 仅用发文历史(无 quote_cnt，退化为价格排序)")
+    parser.add_argument("--candidate-source", default="history", choices=["history", "all"], help="候选池来源：history=用户发文历史（即后台『选择媒体』按钮右侧的『历史记录』，推荐，主题相关度高）；all=全部媒体(含 quote_cnt 热度，但实测热度数据基本是坏的)")
     parser.add_argument("--top-k", type=int, default=3, help="取热度最高的前 K 个媒体，文章在这些媒体间轮转分配(增加覆盖)")
     parser.add_argument("--ids", default="", help="仅对指定文章 id 生成映射（逗号分隔），用于精确锁定刚审核的文章")
     parser.add_argument("--media-ids", default="", help="媒体白名单（逗号分隔的 media_id），仅从指定历史媒体中选择并保序；用于‘从历史媒体里挑’场景")

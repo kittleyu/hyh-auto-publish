@@ -4,3 +4,7 @@ _archive/
 # 运行时生成产物（每次执行产生，非核心）
 *.json
 !companies.txt
+
+# Python 缓存
+__pycache__/
+*.pyc
