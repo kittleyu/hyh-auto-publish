@@ -25,7 +25,10 @@ description: |
 2. **优先选与文章主题相关的媒体平台**：如医院/医疗类 → 医疗健康历史媒体；期货公司 → 雪球/东方财富/新浪财经/知乎/百家号等金融财经历史媒体；游戏类 → 游戏媒体。**避免选与主题不相关的行业媒体**（曾用「选车网/汽车之家」发二次元游戏文被用户否决）。
 3. **在历史记录里优先挑「权重高」的信源**（用户 2026-07-20 明确："你要挑信源权重高的，历史记录里面的媒体"）。权重 = 媒体详情 `/media` 接口的 **`score` 字段**（平台对信源权威度的综合评分，如 财经智慧=303593、金融界=182607、邢台网=33）。历史接口 `media-history` 本身不含 score，须用 `media_id` 去 `/media` 全量目录（12000 个，按 score 排序）反查补全。脚本已内置：选 `--sort score`（**已是默认值**），并对 history 候选自动补全 score 后按降序挑 top-k。可用 `--topic "金融,财经,..."` 叠加主题相关性过滤。
 4. **选定媒体后必须先跟用户确认再真实发布**（用户原话："找好发布媒体后需要跟我确认再发"）。发布动作不可逆，仍须确认。
-4. **智豆不限量**：用户 2026-07-20 明确「智豆是不限制的」——之前 dispatch 报「账户余额不足」并非真实额度限制（疑为瞬时异常）。因此选媒体时**不必为省钱牺牲主题相关性/权威性**，优先选最相关、最权威的历史媒体即可。
+5. **智豆不限量**：用户 2026-07-20 明确「智豆是不限制的」——之前 dispatch 报「账户余额不足」并非真实额度限制（疑为瞬时异常）。因此选媒体时**不必为省钱牺牲主题相关性/权威性**，优先选最相关、最权威的历史媒体即可。
+6. **选媒体的核心目标是「让文章被 AI 引用成参考资料」（GEO 本质）**：优先选 **AI 收录效果好的媒体**。`/media` 的 `score` 字段即平台对信源「AI 收录/引用效果」的综合权重（百家号/搜狐等高分媒体被文心/豆包等 AI 大量引用，故 score 高）。已用 `build_whitelist.py` 拉取全局 `score` 最高的 Top 300 媒体生成 `media_whitelist.json`（门槛 score≥137480，全 A 档极高权重，以百家号/搜狐为主）。
+   - 默认仍从历史记录挑，但加 `--boost-whitelist`：让**落在白名单内（AI 收录好）的历史媒体优先排前**，其余历史媒体按 score 降序兜底。
+   - 若想直接用全局 AI 收录最好的媒体（不限历史），用 `--candidate-source whitelist`。
 
 ## 已确认的关键事实
 
@@ -41,6 +44,7 @@ description: |
 | 媒体热度指标 | `media.quote_cnt` = 平台内置「AI 引用次数」。⚠️ **实测基本是坏的**：corp 4104 的 100 个自媒体仅 2 个 >0（都是「有驾」=0.02，单价却最贵 10864）。按 quote_cnt 排序会退化成「选最贵媒体」，**成本优先用 `--sort price`** |
 | 媒体权重指标 `score` | `media.score` = 平台对信源**权威度/权重**的综合评分（用户口中的「权重」）。`/media` 全量目录（12000 个）每个媒体都带，数值越大越权威（如 财经智慧=303593、金融界=182607、CSDN官方=163752、邢台网=33、有驾=17471）。**选媒体默认按 score 降序**（`--sort score`） |
 | 媒体列表 `/media` | 含 `score`/`quote_cnt`/`price`；字段 `id/name/platform.platform_name/is_active`。分页接口 `?page=&page_size=100&media_type=1或2&sort_by=score&sort_order=desc` |
+| AI 收录优选白名单 `media_whitelist.json` | `build_whitelist.py` 生成：全局 `score` 降序 Top 300 媒体（门槛 score≥137480，全 A 档），即平台判定「AI 收录/引用效果」最好的媒体。用于 `--candidate-source whitelist` 直接发，或 `--boost-whitelist` 在 history 模式优先选。可重跑 `build_whitelist.py` 更新 |
 | 发文历史 `media-history` | 用户历史用过的媒体；**不含 score/quote_cnt**，仅 `media_id/media_name/platform_name/price/media_type`。`media_id` 与 `/media` 的 `id` **可对应**（回 `/media` 目录按 id 反查 score 即可）；少数历史媒体（如新浪头条 id=27562、雪球 id=333323、东方财富 id=45948）不在 `/media` 目录中（属历史专用通道），权重取不到按 0 处理 |
 | 过滤参数被忽略 | `publish_status` 与 `order_id` 过滤参数**后端直接忽略**，实际返回全量。要精确锁定需在客户端按 id 过滤，或读每篇 `publish_status` 字段判断 |
 | 历史媒体会被禁用 | 部分历史媒体已被平台停用，派发返回 **"媒体ID 已被禁用"**。选媒体不能假设历史媒体都可用；多发前先小批量试或接受失败重试 |
@@ -106,6 +110,7 @@ description: |
 | `publish_run.py` | 读取映射表 → 按 media 分组 → 调用 dispatch 发布。参数：`--map --out --dry-run`（**无 --dry-run 才真实扣豆**） |
 | `verify_publish.py` | 核对指定文章真实 `publish_status`（不靠被忽略的过滤参数，逐页匹配读字段）。环境变量 `CORP_ID` / `IDS` |
 | `media_probe.py` | 探查候选媒体池的 quote_cnt / price 分布（判断热度数据可用性、找便宜/相关媒体） |
+| `build_whitelist.py` | 拉取 `/media` 全量按 `score` 降序，生成 `media_whitelist.json`（AI 收录优选白名单，Top 300）与 `media_whitelist_full.json`（全量排序）；打印平台分布供审阅 |
 | `inspect_history.py` | 查看某 corp 的发文历史媒体清单（确认有哪些可用历史媒体） |
 | `test_dispatch_api.py` | 单篇发布接口连通性测试 |
 | `companies.txt` | corp_id ↔ 公司名对照表（含默认公司、重复名公司的多个 corp_id） |
@@ -141,6 +146,17 @@ CORP_ID=<ID> $PY publish_run.py --map map.json
 
 # 4. 核对发布结果（读真实 publish_status，应全为 3=已发布；禁用媒体失败则换备用重试）
 CORP_ID=<ID> IDS="247059,..." $PY verify_publish.py
+
+# 5.（可选）重建 AI 收录优选白名单（全局 score 降序 Top 300）
+$PY build_whitelist.py            # 生成 media_whitelist.json（需调试 Chrome 已登录 360 智见后台）
+
+# 6. 选媒体优先看 AI 收录效果：历史里挑 + 白名单内优先（推荐，既用过又是高权重）
+CORP_ID=<ID> $PY build_map.py --candidate-source history --boost-whitelist --sort score --top-k 5 \
+    --ids "247059,..." --out map.json
+
+# 7. 或：直接用全局 AI 收录最好的媒体发（不限历史，主题相关性用 --topic 约束）
+CORP_ID=<ID> $PY build_map.py --candidate-source whitelist --top-k 5 \
+    --topic "金融,财经,期货,证券,股票,投资" --ids "247059,..." --out map.json
 ```
 
 ## 典型实战记录（可作为模板参考）

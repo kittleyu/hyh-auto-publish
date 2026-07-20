@@ -4,6 +4,8 @@ _archive/
 # 运行时生成产物（每次执行产生，非核心）
 *.json
 !companies.txt
+# AI 收录优选白名单（技能核心资产，需进仓库；可用 build_whitelist.py 重新生成）
+!media_whitelist.json
 
 # Python 缓存
 __pycache__/

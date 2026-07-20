@@ -194,6 +194,16 @@ def normalize_candidate(m):
     }
 
 
+def load_whitelist_ids(path):
+    """读取 AI 收录优选白名单文件，返回其中的 media_id 集合。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return {m.get("id") for m in data if m.get("id") is not None}
+    except Exception:
+        return set()
+
+
 def build_score_map(page):
     """拉取 /media 全量目录, 返回 {media_id: score(权重)} 映射。
     score 是平台对信源权威度的综合评分, 即用户说的『权重』。"""
@@ -223,7 +233,9 @@ def main():
     parser.add_argument("--media-type", type=int, default=2, help="媒体类型：1 新闻，2 自媒体")
     parser.add_argument("--sort", default="score", choices=["score", "quote_cnt", "price"], help="媒体排序依据：score=按信源权重(权威度)降序(推荐,默认)；quote_cnt=按热度；price=按价格升序(省钱)")
     parser.add_argument("--out", default="publish_map.json", help="输出映射表路径")
-    parser.add_argument("--candidate-source", default="history", choices=["history", "all"], help="候选池来源：history=用户发文历史（即后台『选择媒体』按钮右侧的『历史记录』，推荐，主题相关度高）；all=全部媒体(含 score/quote_cnt 热度)")
+    parser.add_argument("--candidate-source", default="history", choices=["history", "all", "whitelist"], help="候选池来源：history=用户发文历史（后台『历史记录』，推荐，主题相关度高）；all=全部媒体(含 score/quote_cnt 热度)；whitelist=AI 收录优选白名单(build_whitelist.py 生成，按 score 取全局 AI 收录最好的媒体)")
+    parser.add_argument("--whitelist", default="media_whitelist.json", help="AI 收录优选白名单文件路径（build_whitelist.py 生成），配合 --candidate-source whitelist 或 --boost-whitelist")
+    parser.add_argument("--boost-whitelist", action="store_true", help="history 模式下，优先选落在白名单(高 score/AI 收录好)内的历史媒体；其余历史媒体按 score 降序兜底")
     parser.add_argument("--top-k", type=int, default=3, help="取权重最高的前 K 个媒体，文章在这些媒体间轮转分配(增加覆盖)")
     parser.add_argument("--ids", default="", help="仅对指定文章 id 生成映射（逗号分隔），用于精确锁定刚审核的文章")
     parser.add_argument("--media-ids", default="", help="媒体白名单（逗号分隔的 media_id），仅从指定历史媒体中选择并保序；用于‘从历史媒体里挑’场景")
@@ -235,8 +247,7 @@ def main():
         only_ids = {int(x.strip()) for x in args.ids.split(",") if x.strip()}
 
     if not USER or not PWD:
-        print("❌ 请设置环境变量 HYH_USER 和 HYH_PWD")
-        sys.exit(1)
+        print("⚠️ 未设置 HYH_USER/HYH_PWD；若调试 Chrome 已登录 360 智见后台则可跳过登录直接拉取")
 
     ensure_chrome()
     from playwright.sync_api import sync_playwright
@@ -292,25 +303,41 @@ def main():
         pkgs = {p["id"]: p for p in pkg_res.get("data", {}).get("keyword_packages", [])}
 
         # 3. 拉取候选媒体池
-        raw_candidates = []
-        if args.candidate_source == "history":
-            print(">>> 拉取用户发文历史 ...")
-            hist_res = api_get(page, "/yunying/v1/articles/media-history?page=1&page_size=1000")
-            hist_data = hist_res.get("data", {})
-            raw_candidates = hist_data.get("list") or hist_data.get("items") or hist_data.get("records") or []
-            print(f"    历史媒体 {len(raw_candidates)} 个 (注意: 历史接口不含 quote_cnt，热度将退化为价格排序)")
-        if not raw_candidates:
-            print(f">>> 拉取全部媒体 (media_type={args.media_type}) 按 {args.sort} 降序 ...")
-            sort_order = "desc" if args.sort == "quote_cnt" else "asc"
-            media_res = api_get(page, f"/yunying/v1/media?page=1&page_size=100&media_type={args.media_type}&sort_by={args.sort}&sort_order={sort_order}")
-            raw_candidates = media_res.get("data", {}).get("medias", [])
-            print(f"    获取到 {len(raw_candidates)} 个媒体")
+        candidates = None
+        if args.candidate_source == "whitelist":
+            print(f">>> 加载 AI 收录优选白名单: {args.whitelist}")
+            try:
+                with open(args.whitelist, encoding="utf-8") as f:
+                    wf = json.load(f)
+                candidates = [{"id": m.get("id"), "name": m.get("name"), "platform_name": m.get("platform_name", ""),
+                                "price": m.get("price", 0) or 0, "quote_cnt": m.get("quote_cnt", 0) or 0,
+                                "score": m.get("score", 0) or 0, "media_type": m.get("media_type", 0), "region": ""}
+                               for m in wf if m.get("id")]
+                print(f"    白名单媒体 {len(candidates)} 个（已含 score，按 score 降序选）")
+            except Exception as e:
+                print(f"❌ 白名单读取失败: {e}")
+                return
 
-        if not raw_candidates:
-            print("❌ 没有可用媒体候选")
-            return
+        if candidates is None:
+            raw_candidates = []
+            if args.candidate_source == "history":
+                print(">>> 拉取用户发文历史 ...")
+                hist_res = api_get(page, "/yunying/v1/articles/media-history?page=1&page_size=1000")
+                hist_data = hist_res.get("data", {})
+                raw_candidates = hist_data.get("list") or hist_data.get("items") or hist_data.get("records") or []
+                print(f"    历史媒体 {len(raw_candidates)} 个 (注意: 历史接口不含 quote_cnt，热度将退化为价格排序)")
+            if not raw_candidates:
+                print(f">>> 拉取全部媒体 (media_type={args.media_type}) 按 {args.sort} 降序 ...")
+                sort_order = "desc" if args.sort == "quote_cnt" else "asc"
+                media_res = api_get(page, f"/yunying/v1/media?page=1&page_size=100&media_type={args.media_type}&sort_by={args.sort}&sort_order={sort_order}")
+                raw_candidates = media_res.get("data", {}).get("medias", [])
+                print(f"    获取到 {len(raw_candidates)} 个媒体")
 
-        candidates = [c for c in (normalize_candidate(m) for m in raw_candidates) if c and c.get("id")]
+            if not raw_candidates:
+                print("❌ 没有可用媒体候选")
+                return
+
+            candidates = [c for c in (normalize_candidate(m) for m in raw_candidates) if c and c.get("id")]
         print(f">>> 候选媒体池归一化后 {len(candidates)} 个")
 
         # 媒体白名单（指定顺序）
@@ -334,7 +361,7 @@ def main():
                 print(f"    主题过滤 [{args.topic}] 后 {len(candidates)}/{before} 个")
 
         # 补全权重(score)：历史接口不含, 从 /media 全量目录按 media_id 补齐
-        if args.sort == "score" and not media_ids_filter:
+        if args.sort == "score" and not media_ids_filter and args.candidate_source != "whitelist":
             print(">>> 补全候选媒体权重(score) ...")
             smap = build_score_map(page)
             hit = 0
@@ -349,10 +376,16 @@ def main():
             # 指定白名单：顺序即用户意图，不重排
             ranked = candidates
             rank_desc = "媒体白名单（指定顺序）"
-        elif args.sort == "score":
-            # 权重降序（信源权威度优先），价格升序作次要键
-            ranked = sorted(candidates, key=lambda m: ((m.get("score", 0) or 0), -(m.get("price", 0) or 0)), reverse=True)
-            rank_desc = "按 score 权重降序"
+        elif args.candidate_source == "whitelist" or args.sort == "score":
+            if args.boost_whitelist:
+                wl = load_whitelist_ids(args.whitelist)
+                ranked = sorted(candidates,
+                                key=lambda m: ((1 if m.get("id") in wl else 0), (m.get("score", 0) or 0), -(m.get("price", 0) or 0)),
+                                reverse=True)
+                rank_desc = "按 score 权重降序（白名单内优先）"
+            else:
+                ranked = sorted(candidates, key=lambda m: ((m.get("score", 0) or 0), -(m.get("price", 0) or 0)), reverse=True)
+                rank_desc = "按 score 权重降序"
         elif args.sort == "price":
             # 价格升序（省钱优先），热度降序作次要键
             ranked = sorted(candidates, key=lambda m: ((m.get("price", 0) or 0), -(m.get("quote_cnt", 0) or 0)))
