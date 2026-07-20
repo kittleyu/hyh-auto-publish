@@ -174,6 +174,7 @@ def normalize_candidate(m):
             "platform_name": m.get("platform_name", ""),
             "price": m.get("price", 0) or 0,
             "quote_cnt": m.get("quote_cnt", 0) or 0,
+            "score": 0,  # 权重(信源权威度): 历史接口不含, 稍后由 /media 目录补全
             "media_type": m.get("media_type", 0),
             "region": m.get("region", ""),
         }
@@ -187,21 +188,46 @@ def normalize_candidate(m):
         "platform_name": (m.get("platform") or {}).get("platform_name", ""),
         "price": m.get("price", 0) or 0,
         "quote_cnt": m.get("quote_cnt", 0) or 0,
+        "score": m.get("score", 0) or 0,
         "media_type": m.get("media_type", 0),
         "region": region or "",
     }
+
+
+def build_score_map(page):
+    """拉取 /media 全量目录, 返回 {media_id: score(权重)} 映射。
+    score 是平台对信源权威度的综合评分, 即用户说的『权重』。"""
+    id2 = {}
+    for mtype in (1, 2):
+        page_num = 1
+        while True:
+            r = api_get(page, f"/yunying/v1/media?page={page_num}&page_size=100&media_type={mtype}&sort_by=score&sort_order=desc")
+            ms = r.get("data", {}).get("medias", [])
+            if not ms:
+                break
+            for m in ms:
+                mid = m.get("id")
+                if mid is not None:
+                    id2[mid] = m.get("score", 0) or 0
+            if page_num >= (r.get("data", {}).get("total_pages") or 1):
+                break
+            page_num += 1
+            if page_num > 60:
+                break
+    return id2
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=20, help="最新 N 篇文章")
     parser.add_argument("--media-type", type=int, default=2, help="媒体类型：1 新闻，2 自媒体")
-    parser.add_argument("--sort", default="quote_cnt", choices=["quote_cnt", "price"], help="媒体排序依据")
+    parser.add_argument("--sort", default="score", choices=["score", "quote_cnt", "price"], help="媒体排序依据：score=按信源权重(权威度)降序(推荐,默认)；quote_cnt=按热度；price=按价格升序(省钱)")
     parser.add_argument("--out", default="publish_map.json", help="输出映射表路径")
-    parser.add_argument("--candidate-source", default="history", choices=["history", "all"], help="候选池来源：history=用户发文历史（即后台『选择媒体』按钮右侧的『历史记录』，推荐，主题相关度高）；all=全部媒体(含 quote_cnt 热度，但实测热度数据基本是坏的)")
-    parser.add_argument("--top-k", type=int, default=3, help="取热度最高的前 K 个媒体，文章在这些媒体间轮转分配(增加覆盖)")
+    parser.add_argument("--candidate-source", default="history", choices=["history", "all"], help="候选池来源：history=用户发文历史（即后台『选择媒体』按钮右侧的『历史记录』，推荐，主题相关度高）；all=全部媒体(含 score/quote_cnt 热度)")
+    parser.add_argument("--top-k", type=int, default=3, help="取权重最高的前 K 个媒体，文章在这些媒体间轮转分配(增加覆盖)")
     parser.add_argument("--ids", default="", help="仅对指定文章 id 生成映射（逗号分隔），用于精确锁定刚审核的文章")
     parser.add_argument("--media-ids", default="", help="媒体白名单（逗号分隔的 media_id），仅从指定历史媒体中选择并保序；用于‘从历史媒体里挑’场景")
+    parser.add_argument("--topic", default="", help="主题相关性过滤（逗号分隔关键词），候选媒体名/平台含任一关键词才保留；如金融场景: 金融,财经,期货,证券,股票,投资,雪球,东方财富,同花顺,新浪,知乎,百家号,网易")
     args = parser.parse_args()
 
     only_ids = set()
@@ -298,11 +324,35 @@ def main():
                 candidates = chosen
                 print(f"    媒体白名单命中 {len(chosen)} 个: {[c['id'] for c in chosen]}")
 
+        # 主题相关性过滤（可选）
+        if args.topic and not media_ids_filter:
+            kws = [k.strip().lower() for k in args.topic.split(",") if k.strip()]
+            if kws:
+                before = len(candidates)
+                candidates = [c for c in candidates
+                              if any(k in (c.get("name", "") + c.get("platform_name", "")).lower() for k in kws)]
+                print(f"    主题过滤 [{args.topic}] 后 {len(candidates)}/{before} 个")
+
+        # 补全权重(score)：历史接口不含, 从 /media 全量目录按 media_id 补齐
+        if args.sort == "score" and not media_ids_filter:
+            print(">>> 补全候选媒体权重(score) ...")
+            smap = build_score_map(page)
+            hit = 0
+            for c in candidates:
+                if c["id"] in smap:
+                    c["score"] = smap[c["id"]]
+                    hit += 1
+            print(f"    已补全 {hit}/{len(candidates)} 个有权重(score); 其余按 0 处理")
+
         # 4. 排序，取前 top_k 个媒体，文章在其间轮转分配
         if media_ids_filter:
             # 指定白名单：顺序即用户意图，不重排
             ranked = candidates
             rank_desc = "媒体白名单（指定顺序）"
+        elif args.sort == "score":
+            # 权重降序（信源权威度优先），价格升序作次要键
+            ranked = sorted(candidates, key=lambda m: ((m.get("score", 0) or 0), -(m.get("price", 0) or 0)), reverse=True)
+            rank_desc = "按 score 权重降序"
         elif args.sort == "price":
             # 价格升序（省钱优先），热度降序作次要键
             ranked = sorted(candidates, key=lambda m: ((m.get("price", 0) or 0), -(m.get("quote_cnt", 0) or 0)))
@@ -331,8 +381,9 @@ def main():
                 "selected_media_name": best["name"],
                 "selected_platform": best.get("platform_name", ""),
                 "price": best.get("price", 0),
+                "score": best.get("score", 0),
                 "quote_cnt": best.get("quote_cnt", 0),
-                "heat_note": f"quote_cnt={best.get('quote_cnt',0)}, price={best.get('price',0)} (top-{i % len(top_media) + 1}/{top_k})"
+                "heat_note": f"score={best.get('score',0)}, price={best.get('price',0)} (top-{i % len(top_media) + 1}/{top_k})"
             })
 
         # 5. 输出映射表
@@ -353,7 +404,7 @@ def main():
         print(f"   预估总成本: {out['total_estimated_cost']} 智豆")
         print("\n预览（前 3 条）:")
         for m in mappings[:3]:
-            print(f"  [{m['article_id']}] {m['article_title'][:40]}... → {m['selected_media_name']} ({m['selected_platform']}) price={m['price']}")
+            print(f"  [{m['article_id']}] {m['article_title'][:40]}... → {m['selected_media_name']} ({m['selected_platform']}) score={m.get('score',0)} price={m['price']}")
 
     finally:
         b.close()

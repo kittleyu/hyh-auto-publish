@@ -23,7 +23,8 @@ description: |
 
 1. **媒体默认从「历史记录」里挑**：后台「创作发布管理 → 选择媒体」按钮**右侧有「历史记录」面板**，里面是用户以前发布过的媒体。对应脚本参数 `--candidate-source history`（**已是默认值**）。不要再退回全平台热度乱选。
 2. **优先选与文章主题相关的媒体平台**：如医院/医疗类 → 医疗健康历史媒体；期货公司 → 雪球/东方财富/新浪财经/知乎/百家号等金融财经历史媒体；游戏类 → 游戏媒体。**避免选与主题不相关的行业媒体**（曾用「选车网/汽车之家」发二次元游戏文被用户否决）。
-3. **选定媒体后必须先跟用户确认再真实发布**（用户原话："找好发布媒体后需要跟我确认再发"）。发布动作不可逆，仍须确认。
+3. **在历史记录里优先挑「权重高」的信源**（用户 2026-07-20 明确："你要挑信源权重高的，历史记录里面的媒体"）。权重 = 媒体详情 `/media` 接口的 **`score` 字段**（平台对信源权威度的综合评分，如 财经智慧=303593、金融界=182607、邢台网=33）。历史接口 `media-history` 本身不含 score，须用 `media_id` 去 `/media` 全量目录（12000 个，按 score 排序）反查补全。脚本已内置：选 `--sort score`（**已是默认值**），并对 history 候选自动补全 score 后按降序挑 top-k。可用 `--topic "金融,财经,..."` 叠加主题相关性过滤。
+4. **选定媒体后必须先跟用户确认再真实发布**（用户原话："找好发布媒体后需要跟我确认再发"）。发布动作不可逆，仍须确认。
 4. **智豆不限量**：用户 2026-07-20 明确「智豆是不限制的」——之前 dispatch 报「账户余额不足」并非真实额度限制（疑为瞬时异常）。因此选媒体时**不必为省钱牺牲主题相关性/权威性**，优先选最相关、最权威的历史媒体即可。
 
 ## 已确认的关键事实
@@ -38,8 +39,9 @@ description: |
 | 发布状态枚举 `Yu` | `0未发布 / 1待发布 / 2发布中 / 3已发布 / 4失败 / 5排队中`。发布成功后字段变 3（刚发可能短暂为 2，稍后转 3） |
 | 发布 API | `POST /yunying/v1/articles/media/{media_id}/dispatch` Body `{"article_ids":[id1,id2,...]}` → `派发成功` |
 | 媒体热度指标 | `media.quote_cnt` = 平台内置「AI 引用次数」。⚠️ **实测基本是坏的**：corp 4104 的 100 个自媒体仅 2 个 >0（都是「有驾」=0.02，单价却最贵 10864）。按 quote_cnt 排序会退化成「选最贵媒体」，**成本优先用 `--sort price`** |
-| 媒体列表 `/media` | 含 `quote_cnt`；字段 `id/name/platform.platform_name` |
-| 发文历史 `media-history` | 用户历史用过的媒体；**不含 quote_cnt**，且 `media_id` 与 `/media` 的 `id` **不是同一套 ID**（无法反查热度） |
+| 媒体权重指标 `score` | `media.score` = 平台对信源**权威度/权重**的综合评分（用户口中的「权重」）。`/media` 全量目录（12000 个）每个媒体都带，数值越大越权威（如 财经智慧=303593、金融界=182607、CSDN官方=163752、邢台网=33、有驾=17471）。**选媒体默认按 score 降序**（`--sort score`） |
+| 媒体列表 `/media` | 含 `score`/`quote_cnt`/`price`；字段 `id/name/platform.platform_name/is_active`。分页接口 `?page=&page_size=100&media_type=1或2&sort_by=score&sort_order=desc` |
+| 发文历史 `media-history` | 用户历史用过的媒体；**不含 score/quote_cnt**，仅 `media_id/media_name/platform_name/price/media_type`。`media_id` 与 `/media` 的 `id` **可对应**（回 `/media` 目录按 id 反查 score 即可）；少数历史媒体（如新浪头条 id=27562、雪球 id=333323、东方财富 id=45948）不在 `/media` 目录中（属历史专用通道），权重取不到按 0 处理 |
 | 过滤参数被忽略 | `publish_status` 与 `order_id` 过滤参数**后端直接忽略**，实际返回全量。要精确锁定需在客户端按 id 过滤，或读每篇 `publish_status` 字段判断 |
 | 历史媒体会被禁用 | 部分历史媒体已被平台停用，派发返回 **"媒体ID 已被禁用"**。选媒体不能假设历史媒体都可用；多发前先小批量试或接受失败重试 |
 
@@ -52,7 +54,7 @@ description: |
 | 可发文章 | `GET /yunying/v1/creation/articles?page=1&page_size=N&audit_status=1&publish_status=0` | ⚠️ `publish_status`/`order_id` 被忽略，返回全量已审核文章。精确锁定用 `--ids` 或读每篇 `publish_status` |
 | 审核通过 | `POST /yunying/v1/article/{article_id}/update` Body `{"id":<id>,"audit_status":1}` | 待审核(-1)→审核完成(1)。**不扣智豆**。返回 `{"code":0,"message":"操作成功"}`。注意用 **POST**（PUT 返回 404） |
 | 词包 | `GET /yunying/v1/keyword/package?page=1&page_size=10000` | 含 `distilled_keywords` / `core_keyword` |
-| 媒体列表 | `GET /yunying/v1/media?media_type=2&sort_by=quote_cnt&sort_order=desc` | `media_type=1` 新闻，`2` 自媒体；含 `quote_cnt` |
+| 媒体列表(含权重) | `GET /yunying/v1/media?media_type=2&sort_by=score&sort_order=desc` | `media_type=1` 新闻，`2` 自媒体；含 `score`(权重)/`quote_cnt`/`price`；build_map 用它在 history 模式下补全候选权重 |
 | 发文历史 | `GET /yunying/v1/articles/media-history?page=1&page_size=1000` | 历史媒体候选池（history 模式用）；字段 `media_id/media_name/platform_name/price` |
 | 发布 | `POST /yunying/v1/articles/media/{media_id}/dispatch` | Body `{"article_ids":[...]}` → `派发成功` |
 | 发布进度 | `GET /yunying/v1/articles/publish-articles?page=1&page_size=N` | 发文进度管理列表，`data.templates[]`，含 `status`/`media_id`/`media_name`/`platform_name` |
