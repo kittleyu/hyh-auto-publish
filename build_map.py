@@ -227,14 +227,77 @@ def build_score_map(page):
     return id2
 
 
+def build_media_index(page):
+    """拉取 /media 全量目录，返回 {media_id: media(dict 含 name/platform_name/score/price/media_type/region)}。
+    用于 curated 模式下按信源名称实时解析 media_id。"""
+    idx = {}
+    for mtype in (1, 2):
+        page_num = 1
+        while True:
+            r = api_get(page, f"/yunying/v1/media?page={page_num}&page_size=100&media_type={mtype}&sort_by=score&sort_order=desc")
+            ms = r.get("data", {}).get("medias", [])
+            if not ms:
+                break
+            for m in ms:
+                mid = m.get("id")
+                if mid is not None:
+                    region = m.get("region")
+                    if isinstance(region, dict):
+                        region = region.get("name", "")
+                    idx[mid] = {
+                        "id": mid,
+                        "name": m.get("name"),
+                        "platform_name": (m.get("platform") or {}).get("platform_name", ""),
+                        "price": m.get("price", 0) or 0,
+                        "quote_cnt": m.get("quote_cnt", 0) or 0,
+                        "score": m.get("score", 0) or 0,
+                        "media_type": m.get("media_type", 0),
+                        "region": region or "",
+                    }
+            if page_num >= (r.get("data", {}).get("total_pages") or 1):
+                break
+            page_num += 1
+            if page_num > 60:
+                break
+    return idx
+
+
+def resolve_media_id(index, name):
+    """在 media 索引中按名称匹配 media_id。优先精确/包含匹配，取 score 最高（即 AI 收录最好）。"""
+    n = (name or "").strip().lower()
+    if not n:
+        return None
+    cands = []
+    for m in index.values():
+        mn = (m.get("name") or "").lower()
+        if not mn:
+            continue
+        if n == mn or n in mn or mn in n:
+            cands.append(m)
+    if not cands:
+        return None
+    cands.sort(key=lambda m: (m.get("score", 0) or 0), reverse=True)
+    return cands[0]["id"]
+
+
+def load_curated(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        return d.get("sources", []) if isinstance(d, dict) else d
+    except Exception:
+        return []
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=20, help="最新 N 篇文章")
     parser.add_argument("--media-type", type=int, default=2, help="媒体类型：1 新闻，2 自媒体")
     parser.add_argument("--sort", default="score", choices=["score", "quote_cnt", "price"], help="媒体排序依据：score=按信源权重(权威度)降序(推荐,默认)；quote_cnt=按热度；price=按价格升序(省钱)")
     parser.add_argument("--out", default="publish_map.json", help="输出映射表路径")
-    parser.add_argument("--candidate-source", default="history", choices=["history", "all", "whitelist"], help="候选池来源：history=用户发文历史（后台『历史记录』，推荐，主题相关度高）；all=全部媒体(含 score/quote_cnt 热度)；whitelist=AI 收录优选白名单(build_whitelist.py 生成，按 score 取全局 AI 收录最好的媒体)")
+    parser.add_argument("--candidate-source", default="history", choices=["history", "all", "whitelist", "curated"], help="候选池来源：history=用户发文历史（后台『历史记录』，推荐，主题相关度高）；all=全部媒体(含 score/quote_cnt 热度)；whitelist=AI 收录优选白名单(build_whitelist.py 生成，按 score 取全局 AI 收录最好的媒体)；curated=用户精选信源(curated_sources.json，你实测好用的媒体，优先级最高，按你给的顺序)")
     parser.add_argument("--whitelist", default="media_whitelist.json", help="AI 收录优选白名单文件路径（build_whitelist.py 生成），配合 --candidate-source whitelist 或 --boost-whitelist")
+    parser.add_argument("--curated", default="curated_sources.json", help="用户精选信源文件路径（curl 整理），配合 --candidate-source curated；每项可预填 media_id，否则运行时按 name 自动解析")
     parser.add_argument("--boost-whitelist", action="store_true", help="history 模式下，优先选落在白名单(高 score/AI 收录好)内的历史媒体；其余历史媒体按 score 降序兜底")
     parser.add_argument("--top-k", type=int, default=3, help="取权重最高的前 K 个媒体，文章在这些媒体间轮转分配(增加覆盖)")
     parser.add_argument("--ids", default="", help="仅对指定文章 id 生成映射（逗号分隔），用于精确锁定刚审核的文章")
@@ -318,6 +381,36 @@ def main():
                 print(f"❌ 白名单读取失败: {e}")
                 return
 
+        elif args.candidate_source == "curated":
+            print(f">>> 加载用户精选信源: {args.curated}")
+            srcs = load_curated(args.curated)
+            if not srcs:
+                print(f"❌ 未读取到信源: {args.curated}")
+                return
+            need = [s for s in srcs if not s.get("media_id")]
+            idx = {}
+            if need:
+                print(f"    实时解析 {len(need)} 个信源的 media_id（需 360 登录态）...")
+                idx = build_media_index(page)
+                for s in need:
+                    mid = resolve_media_id(idx, s.get("name"))
+                    s["media_id"] = mid
+                    if mid is None:
+                        print(f"    ⚠️ 未找到信源(已跳过): {s.get('name')}")
+            raw = []
+            for s in srcs:
+                mid = s.get("media_id")
+                if not mid:
+                    continue
+                m = idx.get(mid) if idx else None
+                if m:
+                    raw.append(m)
+                else:
+                    raw.append({"id": mid, "name": s.get("name"), "platform_name": "", "price": 0,
+                                "quote_cnt": 0, "score": 0, "media_type": 0, "region": ""})
+            candidates = raw
+            print(f"    精选信源可用 {len(candidates)} 个（按 curated 顺序，优先级最高）")
+
         if candidates is None:
             raw_candidates = []
             if args.candidate_source == "history":
@@ -361,7 +454,7 @@ def main():
                 print(f"    主题过滤 [{args.topic}] 后 {len(candidates)}/{before} 个")
 
         # 补全权重(score)：历史接口不含, 从 /media 全量目录按 media_id 补齐
-        if args.sort == "score" and not media_ids_filter and args.candidate_source != "whitelist":
+        if args.sort == "score" and not media_ids_filter and args.candidate_source != "whitelist" and args.candidate_source != "curated":
             print(">>> 补全候选媒体权重(score) ...")
             smap = build_score_map(page)
             hit = 0
@@ -376,6 +469,10 @@ def main():
             # 指定白名单：顺序即用户意图，不重排
             ranked = candidates
             rank_desc = "媒体白名单（指定顺序）"
+        elif args.candidate_source == "curated":
+            # 用户精选信源：按 curated_sources.json 给定顺序，优先级最高，不重排
+            ranked = candidates
+            rank_desc = "用户精选信源顺序(curated)"
         elif args.candidate_source == "whitelist" or args.sort == "score":
             if args.boost_whitelist:
                 wl = load_whitelist_ids(args.whitelist)
