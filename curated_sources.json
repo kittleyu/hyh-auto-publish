@@ -1,0 +1,353 @@
+{
+  "_comment": "用户精选信源（实测好用的媒体），优先级高于平台 score 白名单 media_whitelist.json。用途：build_map.py --candidate-source curated。media_id 字段为空时，由 build_map 在已登录 360 的调试实例下按 name 实时解析；若已反查到则直接复用。category 用于 --topic 过滤参考（如 --topic 金融 只保留 category 命中或名称命中的信源）。",
+  "sources": [
+    {
+      "name": "北京列举网",
+      "category": "通用",
+      "note": "",
+      "media_id": 398396,
+      "resolve_status": "exact",
+      "resolved_name": "北京列举网",
+      "platform_name": "北京列举网",
+      "score": 0,
+      "price": 640
+    },
+    {
+      "name": "邢台网",
+      "category": "地方",
+      "note": "用户原写『邢台』",
+      "media_id": 456449,
+      "resolved_name": "邢台网",
+      "platform_name": "搜狐",
+      "score": 0,
+      "price": 23400,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "网易",
+      "category": "通用",
+      "note": "含网易新闻客户端/网易手机/网易手机端(GEO可发)",
+      "media_id": 223553,
+      "resolved_name": "网易滚动",
+      "platform_name": "百家号",
+      "score": 137480,
+      "price": 2968,
+      "resolve_status": "startswith"
+    },
+    {
+      "name": "游民星空",
+      "category": "游戏",
+      "note": "",
+      "media_id": 313107,
+      "resolve_status": "exact",
+      "resolved_name": "游民星空",
+      "platform_name": "游民星空",
+      "score": 1,
+      "price": 8536
+    },
+    {
+      "name": "搜狐",
+      "category": "通用",
+      "note": "含搜狐网-手机客户端/手机搜狐",
+      "media_id": 237739,
+      "resolved_name": "搜狐（GEO排名可发）",
+      "platform_name": "搜狐",
+      "score": 0,
+      "price": 2270,
+      "resolve_status": "plat_exact"
+    },
+    {
+      "name": "菏泽广电网",
+      "category": "地方",
+      "note": "",
+      "media_id": 448018,
+      "resolved_name": "菏泽广电网",
+      "platform_name": "今日头条",
+      "score": 0,
+      "price": 7632,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "金融界",
+      "category": "金融",
+      "note": "",
+      "media_id": 223128,
+      "resolved_name": "金融界",
+      "platform_name": "百家号",
+      "score": 22651,
+      "price": 7760,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "华律网",
+      "category": "律师",
+      "note": "用户标注『无』，平台可能无此媒体，解析失败将跳过",
+      "media_id": 294638,
+      "resolve_status": "startswith",
+      "resolved_name": "华律网（搜狐新闻）",
+      "platform_name": "搜狐网",
+      "score": 19481,
+      "price": 4365
+    },
+    {
+      "name": "17173",
+      "category": "游戏",
+      "note": "",
+      "media_id": 392652,
+      "resolve_status": "startswith",
+      "resolved_name": "17173游戏网",
+      "platform_name": "17173游戏网",
+      "score": 88013,
+      "price": 14755
+    },
+    {
+      "name": "周口网",
+      "category": "地方",
+      "note": "",
+      "media_id": 461670,
+      "resolve_status": "exact",
+      "resolved_name": "周口网",
+      "platform_name": "周口网",
+      "score": 2,
+      "price": 6480
+    },
+    {
+      "name": "咸宁网",
+      "category": "地方",
+      "note": "咸宁新闻网(科教)/咸宁网！！！/咸宁",
+      "media_id": 48598,
+      "resolved_name": "咸宁网",
+      "platform_name": "东方财富",
+      "score": 0,
+      "price": 5762,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "庭立方",
+      "category": "律师",
+      "note": "搜狐新闻",
+      "media_id": 294700,
+      "resolve_status": "startswith",
+      "resolved_name": "庭立方（搜狐新闻）",
+      "platform_name": "搜狐网",
+      "score": 19481,
+      "price": 2619
+    },
+    {
+      "name": "商业新知",
+      "category": "商业",
+      "note": "",
+      "media_id": 315376,
+      "resolved_name": "商业新知",
+      "platform_name": "商业新知",
+      "score": 0,
+      "price": 1746,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "界面新闻",
+      "category": "财经",
+      "note": "",
+      "media_id": 404937,
+      "resolve_status": "exact",
+      "resolved_name": "界面新闻",
+      "platform_name": "界面新闻",
+      "score": 0,
+      "price": 25200
+    },
+    {
+      "name": "国脉电子政务网",
+      "category": "政务",
+      "note": "机械重工",
+      "media_id": 400188,
+      "resolve_status": "exact",
+      "resolved_name": "国脉电子政务网",
+      "platform_name": "国脉电子政务网",
+      "score": 19601,
+      "price": 3240
+    },
+    {
+      "name": "投资界",
+      "category": "金融",
+      "note": "美篇",
+      "media_id": 314620,
+      "resolved_name": "投资界（美篇）",
+      "platform_name": "投资界",
+      "score": 0,
+      "price": 3317,
+      "resolve_status": "plat_exact"
+    },
+    {
+      "name": "博客园",
+      "category": "技术",
+      "note": "",
+      "media_id": 462664,
+      "resolve_status": "exact",
+      "resolved_name": "博客园",
+      "platform_name": "博客园",
+      "score": 19712,
+      "price": 600
+    },
+    {
+      "name": "中国金投网",
+      "category": "金融",
+      "note": "",
+      "media_id": 303644,
+      "resolve_status": "exact",
+      "resolved_name": "中国金投网",
+      "platform_name": "中国金投网",
+      "score": 0,
+      "price": 3143
+    },
+    {
+      "name": "中国商报网",
+      "category": "财经",
+      "note": "",
+      "media_id": 54757,
+      "resolved_name": "中国商报网",
+      "platform_name": "腾讯",
+      "score": 0,
+      "price": 10554,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "蓝色河",
+      "category": "待确认",
+      "note": "名称疑似笔误，待确认",
+      "media_id": 397071,
+      "resolve_status": "startswith",
+      "resolved_name": "蓝色河畔(GEO可发)",
+      "platform_name": "蓝色河畔",
+      "score": 11791,
+      "price": 1680
+    },
+    {
+      "name": "法律快车网",
+      "category": "律师",
+      "note": "",
+      "media_id": 294640,
+      "resolve_status": "startswith",
+      "resolved_name": "法律快车网（搜狐新闻）",
+      "platform_name": "搜狐网",
+      "score": 19481,
+      "price": 4365
+    },
+    {
+      "name": "美篇",
+      "category": "通用",
+      "note": "用户列『美篇、中华网、凤凰网新闻(官方美篇)、人民生活网美篇』",
+      "media_id": 314250,
+      "resolved_name": "美篇（GEO可发）",
+      "platform_name": "美篇",
+      "score": 0,
+      "price": 2619,
+      "resolve_status": "plat_exact"
+    },
+    {
+      "name": "中华网",
+      "category": "通用",
+      "note": "",
+      "media_id": 418374,
+      "resolved_name": "中华网",
+      "platform_name": "知乎",
+      "score": 0,
+      "price": 1760,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "凤凰网新闻",
+      "category": "通用",
+      "note": "官方美篇",
+      "media_id": 449792,
+      "resolved_name": "凤凰网新闻",
+      "platform_name": "知乎",
+      "score": 0,
+      "price": 8064,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "人民生活网",
+      "category": "通用",
+      "note": "美篇",
+      "media_id": 399565,
+      "resolve_status": "exact",
+      "resolved_name": "人民生活网",
+      "platform_name": "人民生活网",
+      "score": 221,
+      "price": 2160
+    },
+    {
+      "name": "新浪看点",
+      "category": "通用",
+      "note": "",
+      "media_id": 227021,
+      "resolved_name": "新浪看点（滚动）",
+      "platform_name": "新浪",
+      "score": 0,
+      "price": 10088,
+      "resolve_status": "startswith"
+    },
+    {
+      "name": "北京日报",
+      "category": "通用",
+      "note": "百家号黄V",
+      "media_id": 442009,
+      "resolved_name": "北京日报",
+      "platform_name": "百家号",
+      "score": 0,
+      "price": 5184,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "亮点黥西南",
+      "category": "待确认",
+      "note": "名称疑似笔误(亮点黔西南?)，待确认",
+      "media_id": null,
+      "resolve_status": "not_found"
+    },
+    {
+      "name": "中国网蓝田",
+      "category": "通用",
+      "note": "中国网",
+      "media_id": 35287,
+      "resolved_name": "中国网蓝田",
+      "platform_name": "知乎",
+      "score": 894,
+      "price": 4365,
+      "resolve_status": "exact"
+    },
+    {
+      "name": "中国品牌网",
+      "category": "通用",
+      "note": "",
+      "media_id": 393729,
+      "resolve_status": "exact",
+      "resolved_name": "中国品牌网",
+      "platform_name": "中国品牌网",
+      "score": 0,
+      "price": 636
+    },
+    {
+      "name": "祁东新闻网",
+      "category": "地方",
+      "note": "",
+      "media_id": 188155,
+      "resolve_status": "exact",
+      "resolved_name": "祁东新闻网",
+      "platform_name": "其他门户",
+      "score": 0,
+      "price": 4590
+    },
+    {
+      "name": "it168",
+      "category": "科技",
+      "note": "",
+      "media_id": 54720,
+      "resolved_name": "IT168",
+      "platform_name": "腾讯",
+      "score": 1,
+      "price": 7760,
+      "resolve_status": "exact"
+    }
+  ]
+}

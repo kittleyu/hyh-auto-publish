@@ -29,6 +29,7 @@ description: |
 6. **选媒体的核心目标是「让文章被 AI 引用成参考资料」（GEO 本质）**：优先选 **AI 收录效果好的媒体**。`/media` 的 `score` 字段即平台对信源「AI 收录/引用效果」的综合权重（百家号/搜狐等高分媒体被文心/豆包等 AI 大量引用，故 score 高）。已用 `build_whitelist.py` 拉取全局 `score` 最高的 Top 300 媒体生成 `media_whitelist.json`（门槛 score≥137480，全 A 档极高权重，以百家号/搜狐为主）。
    - 默认仍从历史记录挑，但加 `--boost-whitelist`：让**落在白名单内（AI 收录好）的历史媒体优先排前**，其余历史媒体按 score 降序兜底。
    - 若想直接用全局 AI 收录最好的媒体（不限历史），用 `--candidate-source whitelist`。
+7. **用户精选信源 `curated`（最高优先级）**：用户从飞书文档整理的「实测好用的信源」清单 `curated_sources.json`（32 个媒体，带行业/备注，已去重合并：如北京列举网/邢台网/网易/搜狐/金融界/17173/咸宁网/界面新闻/国脉电子政务网/法律快车网/中华网/凤凰网新闻/新浪看点/it168 等）。这是**最高优先级候选源**，覆盖平台白名单与历史记录——用 `--candidate-source curated` 即按用户给定顺序使用这些信源（每项可预填 `media_id`，否则运行时按名称自动解析）。适合「我就想发这几家」的场景；可与 `--topic` 叠加做主题过滤。
 
 ## 已确认的关键事实
 
@@ -45,6 +46,7 @@ description: |
 | 媒体权重指标 `score` | `media.score` = 平台对信源**权威度/权重**的综合评分（用户口中的「权重」）。`/media` 全量目录（12000 个）每个媒体都带，数值越大越权威（如 财经智慧=303593、金融界=182607、CSDN官方=163752、邢台网=33、有驾=17471）。**选媒体默认按 score 降序**（`--sort score`） |
 | 媒体列表 `/media` | 含 `score`/`quote_cnt`/`price`；字段 `id/name/platform.platform_name/is_active`。分页接口 `?page=&page_size=100&media_type=1或2&sort_by=score&sort_order=desc` |
 | AI 收录优选白名单 `media_whitelist.json` | `build_whitelist.py` 生成：全局 `score` 降序 Top 300 媒体（门槛 score≥137480，全 A 档），即平台判定「AI 收录/引用效果」最好的媒体。用于 `--candidate-source whitelist` 直接发，或 `--boost-whitelist` 在 history 模式优先选。可重跑 `build_whitelist.py` 更新 |
+| 用户精选信源 `curated_sources.json` | 用户从飞书文档整理的「实测好用的信源」清单（32 个，带 `category`/`note`）。**已用 `resolve_curated.py` 在 360 后台按 `keyword` 反查 `media_id`，31/32 命中**（仅 `亮点黥西南` 因疑似笔误未找到，发时自动跳过）。`build_map.py --candidate-source curated` 按用户给定顺序使用，`media_id` 已精确填好（不再运行时解析）。优先级最高，盖过 `media_whitelist.json` 与 history。注意：本清单是「实测好用」的硬偏好，主题相关度由 `--topic` 叠加约束 |
 | 发文历史 `media-history` | 用户历史用过的媒体；**不含 score/quote_cnt**，仅 `media_id/media_name/platform_name/price/media_type`。`media_id` 与 `/media` 的 `id` **可对应**（回 `/media` 目录按 id 反查 score 即可）；少数历史媒体（如新浪头条 id=27562、雪球 id=333323、东方财富 id=45948）不在 `/media` 目录中（属历史专用通道），权重取不到按 0 处理 |
 | 过滤参数被忽略 | `publish_status` 与 `order_id` 过滤参数**后端直接忽略**，实际返回全量。要精确锁定需在客户端按 id 过滤，或读每篇 `publish_status` 字段判断 |
 | 历史媒体会被禁用 | 部分历史媒体已被平台停用，派发返回 **"媒体ID 已被禁用"**。选媒体不能假设历史媒体都可用；多发前先小批量试或接受失败重试 |
@@ -105,12 +107,14 @@ description: |
 
 | 脚本 | 用途 |
 |------|------|
-| `build_map.py` | 登录 → 拉文章/词包/媒体 → 归一化 → 生成映射表。参数：`--ids "id1,id2"`（只对指定文章）、`--media-ids "id1,id2"`（媒体白名单，指定历史媒体并保序）、`--sort price\|quote_cnt`、`--candidate-source all\|history`、`--top-k N`、`--media-type 1\|2`、`--out`、`CORP_ID` 环境变量 |
+| `build_map.py` | 登录 → 拉文章/词包/媒体 → 归一化 → 生成映射表。参数：`--ids "id1,id2"`（只对指定文章）、`--media-ids "id1,id2"`（媒体白名单，指定历史媒体并保序）、`--sort price\|quote_cnt\|score`、`--candidate-source all\|history\|whitelist\|curated`、`--curated curated_sources.json`、`--boost-whitelist`、`--top-k N`、`--media-type 1\|2`、`--out`、`CORP_ID` 环境变量 |
 | `audit_run.py` | 批量审核：拉 `audit_status=-1` 待审核文章，逐篇 POST `/article/{id}/update` 置为审核完成。参数：`--limit N --status 1 --dry-run --out` |
 | `publish_run.py` | 读取映射表 → 按 media 分组 → 调用 dispatch 发布。参数：`--map --out --dry-run`（**无 --dry-run 才真实扣豆**） |
 | `verify_publish.py` | 核对指定文章真实 `publish_status`（不靠被忽略的过滤参数，逐页匹配读字段）。环境变量 `CORP_ID` / `IDS` |
 | `media_probe.py` | 探查候选媒体池的 quote_cnt / price 分布（判断热度数据可用性、找便宜/相关媒体） |
 | `build_whitelist.py` | 拉取 `/media` 全量按 `score` 降序，生成 `media_whitelist.json`（AI 收录优选白名单，Top 300）与 `media_whitelist_full.json`（全量排序）；打印平台分布供审阅 |
+| `resolve_curated.py` | 读取 `curated_sources.json`，对每项 `name` 调 `/media?keyword=` 反查 `media_id/platform_name/score/price` 并**写回**原文件（跨 media_type=1/2 搜索，平台名匹配优先）。改了 curated 清单后重跑即可刷新 media_id |
+| `curated_sources.json` | 用户精选信源清单（飞书文档整理），`build_map.py --candidate-source curated` 使用；每项 `{name, category, note, media_id?}`，media_id 留空则运行时按 name 解析 |
 | `inspect_history.py` | 查看某 corp 的发文历史媒体清单（确认有哪些可用历史媒体） |
 | `test_dispatch_api.py` | 单篇发布接口连通性测试 |
 | `companies.txt` | corp_id ↔ 公司名对照表（含默认公司、重复名公司的多个 corp_id） |
@@ -157,6 +161,13 @@ CORP_ID=<ID> $PY build_map.py --candidate-source history --boost-whitelist --sor
 # 7. 或：直接用全局 AI 收录最好的媒体发（不限历史，主题相关性用 --topic 约束）
 CORP_ID=<ID> $PY build_map.py --candidate-source whitelist --top-k 5 \
     --topic "金融,财经,期货,证券,股票,投资" --ids "247059,..." --out map.json
+
+# 8. ★ 用户精选信源（最高优先级，飞书清单整理）：按用户给定顺序发这几家
+CORP_ID=<ID> $PY build_map.py --candidate-source curated --top-k 5 \
+    --ids "247059,..." --out map.json
+#   可叠加主题过滤（如只发金融相关信源）：
+CORP_ID=<ID> $PY build_map.py --candidate-source curated --top-k 3 \
+    --topic "金融,财经,投资" --ids "247059,..." --out map.json
 ```
 
 ## 典型实战记录（可作为模板参考）

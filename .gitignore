@@ -6,6 +6,8 @@ _archive/
 !companies.txt
 # AI 收录优选白名单（技能核心资产，需进仓库；可用 build_whitelist.py 重新生成）
 !media_whitelist.json
+# 用户精选信源（技能核心资产，需进仓库；编辑后用 resolve_curated.py 刷新 media_id）
+!curated_sources.json
 
 # Python 缓存
 __pycache__/
