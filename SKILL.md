@@ -111,11 +111,11 @@ description: |
 
 ```bash
 # 运行环境：playwright 装在托管 venv，必须用这个 python（系统 python 无 playwright）
-PY="C:/Users/<你>/.workbuddy/binaries/python/envs/default/Scripts/python.exe"
-SKILL="C:/Users/<你>/.workbuddy/skills/hyh-auto-publish"
+PY="<你的 WorkBuddy 托管 Python venv>/Scripts/python.exe"   # 例: C:/Users/<你>/.workbuddy/binaries/python/envs/default/Scripts/python.exe
+SKILL="<本 skill 所在目录>"
 cd "$SKILL"
-set HYH_USER=<账号>
-set HYH_PWD=<密码>
+set HYH_USER=<你的后台账号>
+set HYH_PWD=<你的后台密码>
 
 # 0.（若文章是「待审核」）先批量审核通过（不扣豆）
 CORP_ID=<ID> $PY audit_run.py --limit 20 --status 1 --dry-run   # 先看要审核哪些
