@@ -46,7 +46,7 @@ CORP_ID=<ID> IDS="<article_id 逗号分隔>" $PY verify_publish.py
 | `media_probe.py` | 探查候选媒体池 quote_cnt / price 分布 |
 | `inspect_history.py` | 查看某 corp 的发文历史媒体清单 |
 | `test_dispatch_api.py` | 单篇发布接口连通性测试 |
-| `companies.txt` | corp_id ↔ 公司名对照表（含重复名公司的多个 corp_id） |
+| `companies.txt` | corp_id ↔ 公司名对照表（**已去敏模板**：仅含占位 corp_id，请替换为你自己账号下真实的 corp_id 与公司名） |
 
 ## 已知坑（发布前务必看 [`SKILL.md`](./SKILL.md)）
 - 平台 `quote_cnt` 热度数据基本失效，按价格 / 主题相关性选媒体更稳。
@@ -57,3 +57,4 @@ CORP_ID=<ID> IDS="<article_id 逗号分隔>" $PY verify_publish.py
 - **本仓库不含任何账号密码 / 私钥**。凭据一律经环境变量传入，请勿提交明文。
 - 发布到 GitHub 使用 SSH deploy key（每仓库一把独立密钥），私钥在本地 `~/.ssh`，不进仓库。
 - `_archive/`（开发期探查脚本）与运行时生成的 `*.json` 产物已被 `.gitignore` 排除。
+- `companies.txt` 为**去敏模板**，仅含占位 corp_id，不含任何真实客户名称；请按需替换为你自己账号下真实的 corp 列表。运行技能时用 `CORP_ID=<目标corp_id>` 指定公司即可。
