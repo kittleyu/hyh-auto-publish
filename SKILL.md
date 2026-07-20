@@ -113,7 +113,7 @@ description: |
 | `verify_publish.py` | 核对指定文章真实 `publish_status`（不靠被忽略的过滤参数，逐页匹配读字段）。环境变量 `CORP_ID` / `IDS` |
 | `media_probe.py` | 探查候选媒体池的 quote_cnt / price 分布（判断热度数据可用性、找便宜/相关媒体） |
 | `build_whitelist.py` | 拉取 `/media` 全量按 `score` 降序，生成 `media_whitelist.json`（AI 收录优选白名单，Top 300）与 `media_whitelist_full.json`（全量排序）；打印平台分布供审阅 |
-| `resolve_curated.py` | 读取 `curated_sources.json`，对每项 `name` 调 `/media?keyword=` 反查 `media_id/platform_name/score/price` 并**写回**原文件（跨 media_type=1/2 搜索，平台名匹配优先）。改了 curated 清单后重跑即可刷新 media_id |
+| `resolve_curated.py` | 读取 `curated_sources.json`，对每项 `name` 调 `/media?keyword=` 反查 `media_id/platform_name/score/price` 并**写回**原文件（跨 media_type=1/2 搜索，平台名匹配优先）。**新增信源流程**：直接在 `curated_sources.json` 的 `sources` 数组追加 `{name, category, note}`（media_id 留空），重跑本脚本即全量反查（已填的会被刷新为最新，幂等）；重复/同名会自动去重 |
 | `curated_sources.json` | 用户精选信源清单（飞书文档整理），`build_map.py --candidate-source curated` 使用；每项 `{name, category, note, media_id?}`，media_id 留空则运行时按 name 解析 |
 | `inspect_history.py` | 查看某 corp 的发文历史媒体清单（确认有哪些可用历史媒体） |
 | `test_dispatch_api.py` | 单篇发布接口连通性测试 |
